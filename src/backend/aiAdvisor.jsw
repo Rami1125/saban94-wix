@@ -2,29 +2,34 @@ import { fetch } from 'wix-fetch';
 import wixData from 'wix-data';
 
 /**
- * פונקציה לקבלת תשובה מה-AI עם הקשר מה-CMS
+ * פונקציה לקבלת תשובה מה-AI עם מנגנון ריטריי (Backoff) והקשר טכני
+ * הפונקציה שואבת נתונים מה-CMS כדי להכיר את המלאי שלך
  */
 export async function getTechnicalAdvice(userQuery) {
-    const apiKey = ""; // המפתח מוזרק אוטומטית בסביבת ההרצה
+    const apiKey = ""; // המפתח יוזרק אוטומטית בסביבת ההרצה
     
-    // שליפת נתונים מה-CMS כדי שה-AI יהיה מומחה לחומרים שלך
+    // שליפת הקשר מה-CMS (מוצרים ומפרטים)
     let productContext = "";
     try {
-        const productsResult = await wixData.query("Products").limit(50).find();
+        const productsResult = await wixData.query("Products")
+            .limit(20)
+            .find();
         productContext = productsResult.items.map(p => `${p.name}: ${p.description}`).join('\n');
     } catch (e) {
-        console.error("Data fetch error", e);
+        console.error("שגיאה במשיכת נתונים מה-CMS", e);
     }
 
-    const systemPrompt = `You are a professional technical consultant for building materials at 'Saban'. 
-    Expert in: Waterproofing, Adhesives, Gypsum, and Construction.
-    Your inventory:
+    const systemPrompt = `אתה יועץ טכני מקצועי לחומרי בניין. 
+    מומחה באיטום, הדבקה, גבס ובנייה מתקדמת.
+    הקשר של המוצרים והמלאי הזמין אצלנו:
     ${productContext}
-    Instructions:
-    - Answer in Hebrew.
-    - Be professional, accurate, and helpful.
-    - If a specific product from the context fits the user's needs, recommend it.
-    - If you don't know, suggest contacting Saban's technical support directly.`;
+    
+    הנחיות:
+    1. ענה בעברית בלבד.
+    2. היה מקצועי, תמציתי ומדויק.
+    3. אם חומר ספציפי מהרשימה מתאים לשאלה, המלץ עליו.
+    4. אם אינך בטוח, הצע ליצור קשר עם מומחה אנושי או מהנדס טכני.
+    5. שמור על טון עוזר ואמין.`;
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
@@ -33,7 +38,7 @@ export async function getTechnicalAdvice(userQuery) {
         systemInstruction: { parts: [{ text: systemPrompt }] }
     };
 
-    // מנגנון Retry למניעת קריסות
+    // לוגיקת Exponential Backoff למניעת קריסות
     let retries = 0;
     const maxRetries = 5;
 
@@ -47,7 +52,7 @@ export async function getTechnicalAdvice(userQuery) {
 
             if (response.ok) {
                 const result = await response.json();
-                return result.candidates?.[0]?.content?.parts?.[0]?.text || "מצטער, לא הצלחתי לייצר תשובה.";
+                return result.candidates?.[0]?.content?.parts?.[0]?.text || "מצטער, השרת לא החזיר תשובה.";
             }
 
             if (response.status !== 429 && response.status < 500) {
@@ -62,5 +67,5 @@ export async function getTechnicalAdvice(userQuery) {
         retries++;
     }
 
-    return "מצטער, יש עומס על השרת. נסה שוב בעוד רגע.";
+    return "מצטער, חלה שגיאה מתמשכת בחיבור ליועץ. נסה שוב מאוחר יותר.";
 }
