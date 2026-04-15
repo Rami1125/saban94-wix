@@ -1,68 +1,78 @@
 import { getTechnicalAdvice } from 'backend/aiAdvisor.jsw';
 
-/**
- * דף יועץ טכני AI - ניהול ממשק המשתמש
- */
-$w.onReady(function () {
-    // אתחול צ'אט ריק
-    $w("#chatBox").html = `<div style="font-family: Arial; direction: rtl; color: #333;">שלום! אני היועץ הטכני שלך. איך אוכל לעזור לך היום?</div>`;
+// מערך שינהל את היסטוריית ההודעות בצ'אט
+let chatMessages = [];
 
-    // שליחה בלחיצה על כפתור
-    $w("#sendButton").onClick(async () => {
-        await processUserMessage();
+$w.onReady(function () {
+    // אתחול ה-Repeater להצגת הודעות
+    $w("#chatRepeater").onItemReady(($item, itemData, index) => {
+        $item("#messageText").text = itemData.text;
+        $item("#roleText").text = itemData.role === "user" ? "אתה" : "יועץ טכני";
+        $item("#timestampText").text = itemData.time;
+
+        // עיצוב דינמי לפי זהות השולח
+        if (itemData.role === "user") {
+            $item("#messageContainer").style.backgroundColor = "#F0F0F0";
+            $item("#messageContainer").style.borderColor = "#0078FF";
+        } else {
+            $item("#messageContainer").style.backgroundColor = "#E8F4FF";
+            $item("#messageContainer").style.borderColor = "#28A745";
+        }
     });
 
-    // שליחה בלחיצה על Enter בשדה הקלט
+    // כפתור שליחה
+    $w("#sendButton").onClick(async () => {
+        await sendMessage();
+    });
+
+    // שליחה בלחיצה על Enter
     $w("#userInput").onKeyPress((event) => {
         if (event.key === "Enter") {
-            processUserMessage();
+            sendMessage();
         }
     });
 });
 
-async function processUserMessage() {
-    const userMessage = $w("#userInput").value;
-    if (!userMessage || userMessage.trim() === "") return;
+/**
+ * ניהול תהליך שליחת ההודעה וקבלת תשובה
+ */
+async function sendMessage() {
+    const userText = $w("#userInput").value;
+    if (!userText || userText.trim() === "") return;
 
-    // הוספת הודעת המשתמש לתצוגה
-    addMessageToChat("user", userMessage);
+    // הוספת הודעת המשתמש
+    addMessageToArray("user", userText);
     
-    // ניקוי הקלט והצגת מצב טעינה
+    // איפוס שדה הקלט והצגת מצב טעינה
     $w("#userInput").value = "";
     $w("#loadingGif").show();
 
     try {
-        const aiResponse = await getTechnicalAdvice(userMessage);
-        addMessageToChat("ai", aiResponse);
+        // קריאה ל-AI ב-Backend
+        const aiResponse = await getTechnicalAdvice(userText);
+        addMessageToArray("ai", aiResponse);
     } catch (error) {
-        addMessageToChat("ai", "אופס, משהו השתבש בייעוץ. נסה לשאול שוב בבקשה.");
-        console.error("Advisor Error:", error);
+        addMessageToArray("ai", "אופס, משהו השתבש. נסה לשאול שוב בבקשה.");
+        console.error("שגיאת יועץ:", error);
     } finally {
         $w("#loadingGif").hide();
+        // גלילה אוטומטית לסוף (וודא שיש אלמנט בשם bottomAnchor בתחתית)
+        $w("#bottomAnchor").scrollTo();
     }
 }
 
 /**
- * הוספת הודעה מעוצבת לתיבת הצ'אט
+ * עדכון המערך ורענון ה-Repeater
  */
-function addMessageToChat(role, text) {
+function addMessageToArray(role, text) {
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const isUser = role === "user";
     
-    const containerStyle = `margin-bottom: 15px; padding: 10px; border-radius: 10px; direction: rtl; font-family: sans-serif;`;
-    const userStyle = `background-color: #f0f0f0; text-align: right; border-right: 4px solid #0078FF;`;
-    const aiStyle = `background-color: #E8F4FF; text-align: right; border-right: 4px solid #28A745;`;
-    
-    const messageHtml = `
-        <div style="${containerStyle} ${isUser ? userStyle : aiStyle}">
-            <span style="font-size: 12px; color: #666;">${isUser ? 'אתה' : 'יועץ טכני'} | ${timestamp}</span><br>
-            <div style="margin-top: 5px; font-size: 15px; line-height: 1.4;">${text.replace(/\n/g, '<br>')}</div>
-        </div>
-    `;
+    chatMessages.push({
+        "_id": Date.now().toString(),
+        "role": role,
+        "text": text,
+        "time": timestamp
+    });
 
-    // עדכון ה-HTML של תיבת הצ'אט
-    $w("#chatBox").html = $w("#chatBox").html + messageHtml;
-    
-    // גלילה אוטומטית לסוף (אם האלמנט תומך או דרך עוגן)
-    $w("#chatBox").scrollTo();
+    $w("#chatRepeater").data = chatMessages;
 }
