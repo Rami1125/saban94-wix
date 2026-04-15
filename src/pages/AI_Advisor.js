@@ -4,17 +4,19 @@ import { getTechnicalAdvice } from 'backend/aiAdvisor.jsw';
 let chatMessages = [];
 
 $w.onReady(function () {
+    console.log("Page Ready - Initializing AI Advisor");
+
     // הודעת פתיחה אוטומטית
     addMessageToChat("ai", "שלום! אני היועץ הטכני של סבן. איך אוכל לעזור לך היום?");
 
-    // הגדרת ה-Repeater - וודא שה-ID של הריפיטר הוא chatRepeater
+    // הגדרת ה-Repeater
     $w("#chatRepeater").onItemReady(($item, itemData) => {
-        // התאמה ל-IDs שראיתי בתמונות שלך
+        console.log("Item Ready in Repeater:", itemData);
+        
         if ($item("#messageText")) $item("#messageText").text = itemData.text;
         if ($item("#roleText")) $item("#roleText").text = itemData.role === "user" ? "אתה" : "יועץ טכני";
         if ($item("#timestampText")) $item("#timestampText").text = itemData.time;
 
-        // עיצוב לפי צד השולח
         if ($item("#messageContainer")) {
             if (itemData.role === "user") {
                 $item("#messageContainer").style.backgroundColor = "#F0F0F0";
@@ -28,12 +30,14 @@ $w.onReady(function () {
 
     // אירוע לחיצה על כפתור השליחה
     $w("#sendButton").onClick(async () => {
+        console.log("Send button clicked");
         await handleUserRequest();
     });
 
     // שליחה ב-Enter
     $w("#userInput").onKeyPress((event) => {
         if (event.key === "Enter") {
+            console.log("Enter pressed");
             handleUserRequest();
         }
     });
@@ -41,23 +45,27 @@ $w.onReady(function () {
 
 async function handleUserRequest() {
     const query = $w("#userInput").value;
-    if (!query || query.trim() === "") return;
+    if (!query || query.trim() === "") {
+        console.warn("User input is empty");
+        return;
+    }
 
-    // הצגת הודעת המשתמש
+    console.log("Processing request:", query);
     addMessageToChat("user", query);
-    $w("#userInput").value = ""; // ניקוי השדה
+    $w("#userInput").value = ""; 
     
-    // הצגת מצב טעינה (אם יש לך אלמנט כזה)
     if ($w("#loadingGif")) $w("#loadingGif").show();
 
     try {
+        console.log("Calling Backend function...");
         const answer = await getTechnicalAdvice(query);
+        console.log("AI Response received:", answer);
         addMessageToChat("ai", answer);
     } catch (err) {
-        addMessageToChat("ai", "אופס, חלה שגיאה בחיבור ליועץ. נסה שוב.");
+        console.error("Error in AI Advisor request:", err);
+        addMessageToChat("ai", "אופס, חלה שגיאה בחיבור ליועץ. בדוק את ה-Console לפרטים.");
     } finally {
         if ($w("#loadingGif")) $w("#loadingGif").hide();
-        // גלילה אוטומטית לסוף (אם יש אלמנט בתחתית בשם bottomAnchor)
         if ($w("#bottomAnchor")) $w("#bottomAnchor").scrollTo();
     }
 }
@@ -72,6 +80,6 @@ function addMessageToChat(role, text) {
         "time": timestamp
     });
 
-    // עדכון הנתונים בריפיטר
+    console.log("Updating Repeater Data:", chatMessages);
     $w("#chatRepeater").data = chatMessages;
 }
