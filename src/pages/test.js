@@ -4,10 +4,15 @@ $w.onReady(() => {
   $w('#testButton').onClick(async () => {
     $w('#testOutput').text = 'Thinking...';
 
-    try {
-      const question = $w('#testInput').value;
-      const answer = await getTechnicalAdvice(question);
+    const question = $w('#testInput').value;
 
+    if (!question) {
+      $w('#testOutput').text = 'Please enter a question';
+      return;
+    }
+
+    try {
+      const answer = await getTechnicalAdvice(question);
       $w('#testOutput').text = answer;
     } catch (err) {
       console.error(err);
