@@ -1,24 +1,24 @@
-import { fetch } from 'wix-fetch';
-import wixData from 'wix-data';
-import { getSecret } from 'wix-secrets-backend'; // ייבוא מנהל הסודות
+import { fetch } from 'wix-fetch'; //
+import wixData from 'wix-data'; //
+import { getSecret } from 'wix-secrets-backend'; // ייבוא ספריית הסודות של Wix
 
 /**
- * פונקציה לקבלת תשובה מה-AI עם מנגנון ריטריי (Backoff) והקשר טכני
- * הפונקציה שואבת נתונים מה-CMS כדי להכיר את המלאי של סבן
+ * פונקציה לקבלת תשובה מה-AI עם מנגנון ריטריי והקשר טכני מה-CMS.
+ * מושכת את ה-API Key בצורה מאובטחת מה-Secrets Manager.
  */
 export async function getTechnicalAdvice(userQuery) {
-    // משיכת המפתח בצורה מאובטחת מה-Secrets Manager
+    // משיכת המפתח שהגדרת בשם GEMINI_API_KEY
     const apiKey = await getSecret("GEMINI_API_KEY"); 
     
     // שליפת הקשר מה-CMS (מוצרים ומפרטים)
     let productContext = "";
     try {
         const productsResult = await wixData.query("Products")
-            .limit(50) // הגדלנו ל-50 מוצרים לקבלת הקשר רחב יותר
+            .limit(50) // הגדלנו ל-50 לקבלת הקשר רחב יותר
             .find();
-        productContext = productsResult.items.map(p => `${p.name}: ${p.description}`).join('\n');
+        productContext = productsResult.items.map(p => `${p.name}: ${p.description}`).join('\n'); //
     } catch (e) {
-        console.error("שגיאה במשיכת נתונים מה-CMS", e);
+        console.error("שגיאה במשיכת נתונים מה-CMS", e); //
     }
 
     const systemPrompt = `אתה יועץ טכני מקצועי לחומרי בניין בחנות "סבן". 
@@ -31,44 +31,44 @@ export async function getTechnicalAdvice(userQuery) {
     2. היה מקצועי, תמציתי ומדויק.
     3. אם חומר ספציפי מהרשימה מתאים לשאלה, המלץ עליו.
     4. אם אינך בטוח, הצע ליצור קשר עם מומחה אנושי בחנות.
-    5. שמור על טון עוזר, אמין וחברותי.`;
+    5. שמור על טון עוזר ואמין.`;
 
-    // שימוש בגרסה יציבה של Gemini
+    // שימוש בגרסת המודל המעודכנת
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     const payload = {
         contents: [{ parts: [{ text: userQuery }] }],
-        systemInstruction: { parts: [{ text: systemPrompt }] }
+        systemInstruction: { parts: [{ text: systemPrompt }] } //
     };
 
+    // לוגיקת Exponential Backoff
     let retries = 0;
     const maxRetries = 5;
 
-    while (retries <= maxRetries) {
+    while (retries <= maxRetries) { //
         try {
             const response = await fetch(url, {
                 method: 'POST',
                 body: JSON.stringify(payload),
                 headers: { 'Content-Type': 'application/json' }
-            });
+            }); //
 
-            if (response.ok) {
+            if (response.ok) { //
                 const result = await response.json();
-                return result.candidates?.[0]?.content?.parts?.[0]?.text || "מצטער, לא הצלחתי לעבד תשובה.";
+                return result.candidates?.[0]?.content?.parts?.[0]?.text || "מצטער, השרת לא החזיר תשובה."; //
             }
 
-            // אם זו שגיאת עומס (429) או שגיאת שרת (500 ומעלה) - נבצע Retry
             if (response.status !== 429 && response.status < 500) {
-                throw new Error(`API Error: ${response.status}`);
+                throw new Error(`API Error: ${response.status}`); //
             }
         } catch (err) {
-            if (retries === maxRetries) throw err;
+            if (retries === maxRetries) throw err; //
         }
 
-        const waitTime = Math.pow(2, retries) * 1000;
-        await new Promise(resolve => setTimeout(resolve, waitTime));
+        const waitTime = Math.pow(2, retries) * 1000; //
+        await new Promise(resolve => setTimeout(resolve, waitTime)); //
         retries++;
     }
 
-    return "מצטער, היועץ כרגע עמוס. כדאי לנסות שוב בעוד רגע.";
+    return "מצטער, חלה שגיאה מתמשכת בחיבור ליועץ. נסה שוב מאוחר יותר."; //
 }
